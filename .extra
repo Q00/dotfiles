@@ -1,0 +1,7 @@
+GIT_AUTHOR_NAME="Q00"
+GIT_COMMITTER_NAME="Q00"
+git config --global user.name "Q00"
+GIT_AUTHOR_EMAIL="jqyu.lee@gmail.com"
+GIT_COMMITTER_EMAIL="jqyu.lee@gmail.com"
+git config --global user.email "jqyu.lee@gmai.com"
+

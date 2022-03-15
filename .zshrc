@@ -1,0 +1,201 @@
+# .zshrc
+# ======
+# vim: set sts=2 sw=2 ts=2
+
+# To profile zsh startup, use the following:
+# In ~/.zshrc,
+#  (BEGIN) zmodload zsh/zprof
+#  (END)   zprof >! ~/.zsh.startup.log
+# % repeat 3 {time zsh -i -c exit}
+
+
+# Default prompt host color for pure theme and tmux statusbar.
+# You may want to have different color per machine (use ANSI color name or xterm color codes [0-255]).
+#   - https://upload.wikimedia.org/wikipedia/commons/1/15/Xterm_256color_chart.svg
+# The PROMPT_HOST_COLOR variable can be inherited from a parent shell, tmux, or SSH session.
+if [[ -z "$PROMPT_HOST_COLOR" ]]; then
+  export PROMPT_HOST_COLOR="6"  # cyan
+fi
+
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# autoload built-in zsh utilities.
+autoload -Uz is-at-least
+
+
+# zgen           {{{
+# ===================
+if [[ ! -s "${ZDOTDIR:-$HOME}/.zgen/zgen.zsh" ]]; then
+  echo -e "\033[0;31m zgen is not installed; please update dotfiles !"
+  echo -e "\033[0;33m  e.g. $ dotfiles update\n\
+       $ cd ~/.dotfiles && python install.py"
+  echo -e "\033[0m"
+  return
+fi
+
+source "${ZDOTDIR:-$HOME}/.zgen/zgen.zsh"
+
+
+# Source the Prezto configuration file.
+if [[ -s "${ZDOTDIR:-$HOME}/.zpreztorc" ]]; then
+  source "${ZDOTDIR:-$HOME}/.zpreztorc"
+fi
+
+# Dirty hacks for Prezto+zplug
+# @see https://github.com/zplug/zplug/issues/373
+zstyle ":prezto:module:completion" loaded 'yes'
+
+# Do not put all usernames as possible candidates for tab completion.
+zstyle ':completion:*' users root $USER
+
+
+# virtualenvwrapper -- use lazy load (see prezto#669)
+if (( $+commands[virtualenvwrapper_lazy.sh] )); then
+    source "$commands[virtualenvwrapper_lazy.sh]"
+fi
+
+# nvm -- sourcing is very slow, use lazy load
+if [[ -f "$HOME/.nvm/nvm.sh" ]]; then
+  function nvm() {
+    unfunction nvm
+    source "$HOME/.nvm/nvm.sh"
+    nvm "$@"
+  }
+fi
+
+# Additional zplug from ~/.zshrc.local
+if [[ -s "${ZDOTDIR:-$HOME}/.zshrc.local" ]]; then
+  source "${ZDOTDIR:-$HOME}/.zshrc.local"
+fi
+
+# Misc plugin configs {{{
+# -----------------------
+
+# fzf-marks
+export FZF_MARKS_JUMP='^g'
+
+# }}}
+
+# ------------------------------------------------------ }}}
+
+# Cleanup obsolete zgen plugins (zgen reset doesn't ignore)
+if [[ -n "${DOTFILES_UPDATE}" ]]; then
+  rm -rf ~/.zgen/zdharma/fast-syntax-highlighting-master
+fi
+
+# zgen plugin specifications
+# NOTE: To reflect the added/updated plugins, try 'zgen reset'
+if ! zgen saved; then
+  echo "Initializing zgen plugins ..."
+
+  # load prezto. see ~/.zpreztorc for plugin configurations
+  zgen prezto
+
+  # additional modules/plugins
+  # --------------------------
+
+  if is-at-least 5.4; then
+    # zsh theme: powerlevel10k + customization
+    # p10k's minimum zsh requirement is 5.1 but we require zsh 5.4+,
+    # because without the instant mode initialization is slower than pure.
+    zgen load romkatv/powerlevel10k 'powerlevel10k.zsh-theme'
+  else
+    # zsh theme: pure (forked ver). For OLD zsh.
+    zgen load mafredri/zsh-async
+    zgen load wookayin/pure
+  fi
+
+  # zsh syntax: FSH
+  # theme file (XDG:wook) is at ~/.config/fsh/wook.ini
+  # For some reason, @zdharma's repo is gone -- workaround by using its fork
+  zgen load wookayin/fast-syntax-highlighting
+  fast-theme "XDG:wook"
+
+  # More completion support
+  zgen load esc/conda-zsh-completion
+
+  # misc.
+  # #see ~/.zsh/zsh.d/envs.zsh for configs
+  zgen load wookayin/fzf-fasd
+
+  # fzf-marks
+  zgen load urbainvaes/fzf-marks
+
+  zgen load zsh-users/zsh-autosuggestions
+  if (( $+commands[virtualenvwrapper_lazy.sh] || $+commands[conda] )); then
+    # Use my own fork for a while, to support autoswitch into anaconda envs
+    zgen load wookayin/zsh-autoswitch-virtualenv
+  fi
+  if [[ "`uname`" == "Darwin" ]]; then
+    zgen load wookayin/anybar-zsh
+  fi
+
+  zgen save
+
+fi
+
+# }}} ===================
+
+# fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# Source after-{zplug,zgen} zsh script files.
+for config_file (${ZDOTDIR:-$HOME}/.zsh/zsh.d/*.zsh(N)) source $config_file
+
+# Terminal
+# Use xterm-256color (for tmux, too)
+if [[ $TERM != "xterm-kitty" ]]; then
+  export TERM="xterm-256color"
+fi
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.zsh/p10k.zsh ]] || source ~/.zsh/p10k.zsh
+
+
+# iTerm integration (for OS X iTerm2)
+# @see https://iterm2.com/shell_integration.html
+if [[ "`uname`" == "Darwin" ]] && [[ -f ${HOME}/.iterm2_shell_integration.zsh ]]; then
+    source ${HOME}/.iterm2_shell_integration.zsh
+fi
+
+if (( $+commands[iterm-tab-color] )); then
+    # set tab color, if it is a new connection to remote through SSH
+    function iterm_tab_color_auto() {
+        if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ] && [ -n "$PROMPT_HOST_COLOR" ]; then
+            iterm-tab-color $PROMPT_HOST_COLOR
+        fi
+    }
+    iterm_tab_color_auto
+fi
+
+# Anaconda3
+# see ~/.zshenv for $CONDA_EXE detection
+function _conda_initialize() {
+# >>> conda initialize >>>
+if [ -n "${CONDA_EXE}" ]; then
+  ${CONDA_EXE} config --set auto_activate_base false
+  __conda_setup="$(${CONDA_EXE} 'shell.zsh' 'hook' 2> /dev/null)"
+  if [ $? -eq 0 ]; then
+      eval "$__conda_setup"
+  fi
+  unset __conda_setup
+fi
+# <<< conda initialize <<<
+}
+# Note: conda initialize is slow (0.3 sec), so execute lazily
+conda() {
+  unfunction conda
+  _conda_initialize
+  conda "$@"
+}
+
+if [[ -z "$CONDA_EXE" && -d "/opt/homebrew/Caskroom/miniconda" ]]; then
+  echo "Warning: Please install miniconda locally on your HOME, not via Homebrew."
+  echo "$ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+  echo "$ ./Miniconda3-latest-MacOSX-x86_64.sh -p $HOME/.miniconda3"
+fi
